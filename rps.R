@@ -4,7 +4,7 @@ library(data.table)
 
 # definitions
 n = 1000 #number of games
-comp_strat = c(0.4, 0.3, 0.3) #computer probabilities of rock/paper/scissors respectively 
+comp_strat = c(0.6, 0.2, 0.2) #computer probabilities of rock/paper/scissors respectively 
 
 weapons <- c('R', 'P', 'S')
 num_actions <- length(weapons)
@@ -26,23 +26,42 @@ rps <- function(comp, player){
   return(result)
 }
 
-# update strategy
-updatePlayer <- function(player_strategy, regret_sum, strategy_sum){
+# regret-matched mixed strategy
+updatePlayer <- function(player_strat, regret_sum, strategy_sum){
   normalising_sum = 0
   for(a in 1:num_actions){
-    player_strategy[a] = if_else(regret_sum[a] > 0, regret_sum[a], 0)
-    normalising_sum = normalising_sum + player_strategy[a]
+    player_strat[a] = if_else(regret_sum[a] > 0, regret_sum[a], 0)
+    normalising_sum = normalising_sum + player_strat[a]
   }
   
   for(a in 1:num_actions){
     if(normalising_sum > 0){
-      player_strategy[a] = player_strategy[a] / normalising_sum
+      player_strat[a] = player_strat[a] / normalising_sum
     } else {
-      player_strategy[a] = 1 / num_actions
+      player_strat[a] = 1 / num_actions
     }
-    strategy_sum[a] = strategy_sum[a] + player_strategy[a]
+    strategy_sum[a] = strategy_sum[a] + player_strat[a]
   }
-  return(player_strategy)
+  
+  out <- list('player_strat' = player_strat, 'strategy_sum' = strategy_sum)
+  return(out)
+}
+
+# average strategy
+avgStrat <- function(strategy_sum){
+  avg_strat <- vector(mode = 'numeric', length = num_actions)
+  normalising_sum = 0
+  for(a in 1:num_actions){
+    normalising_sum = normalising_sum + strategy_sum[a]
+  }
+  for(a in 1:num_actions){
+    if(normalising_sum > 0){
+      avg_strat[a] = strategy_sum[a] / normalising_sum
+    } else{
+      avg_strat[a] = 1 / num_actions
+    }
+  }
+  return(avg_strat)
 }
 
 # get action
@@ -60,10 +79,15 @@ regrets <- function(regret_sum, result, player){
   return(regret_sum)
 }
 
+
+
 #player_strat = c(rep(1 / num_actions, num_actions)) # initialise player RPS probs evenly weighted
 
-for (i in 1:10){
+for (i in 1:10000){
   player_strategy <- updatePlayer(player_strategy, regret_sum, strategy_sum)
+  
+  strategy_sum <- player_strategy$strategy_sum
+  player_strategy <- player_strategy$player_strat
   
   comp <- actions(comp_strat)
   player <- actions(player_strategy)
@@ -72,14 +96,10 @@ for (i in 1:10){
   
   regret_sum <- regrets(regret_sum, result, player)
   
-  print(c(comp, player, result, player_strategy))
+  player_strategy = avgStrat(strategy_sum)
+  
+  res = result + res
+  print(c(res, player_strategy))
 }
-
-tmp <- as.data.table(tmp)
-tmp$pl <- cumsum(tmp$tmp)
-tail(tmp)
-
-table(tmp)
-
 
 
