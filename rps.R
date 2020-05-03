@@ -1,10 +1,13 @@
 library(dplyr)
-library(ggplot2)
 library(data.table)
+library(tidyr)
+
+library(ggplot2)
+library(gridExtra)
 
 # definitions
 n = 1000 #number of games
-comp_strat = c(0.6, 0.2, 0.2) #computer probabilities of rock/paper/scissors respectively 
+comp_strat = c(0.4, 0.3, 0.3) #computer probabilities of rock/paper/scissors respectively 
 
 weapons <- c('R', 'P', 'S')
 num_actions <- length(weapons)
@@ -71,9 +74,9 @@ actions <- function(strat = strategy) {
 }
 
 # accumulate regrets
-regrets <- function(regret_sum, result, player){
+regrets <- function(regret_sum, result, comp){
   for(a in 1:num_actions){
-    action_utility = rps(weapons[a], player)
+    action_utility = rps(comp, weapons[a])
     regret_sum[a] = regret_sum[a] + action_utility - result
   }
   return(regret_sum)
@@ -82,8 +85,11 @@ regrets <- function(regret_sum, result, player){
 
 
 #player_strat = c(rep(1 / num_actions, num_actions)) # initialise player RPS probs evenly weighted
+profit <- vector(mode = 'numeric', length = n)
+strat <- data.frame(matrix(nrow = n, ncol = 3))
+colnames(strat) <- c('R', 'P', 'S')
 
-for (i in 1:10000){
+for (i in 1:n){
   player_strategy <- updatePlayer(player_strategy, regret_sum, strategy_sum)
   
   strategy_sum <- player_strategy$strategy_sum
@@ -94,12 +100,30 @@ for (i in 1:10000){
 
   result <- rps(comp, player)
   
-  regret_sum <- regrets(regret_sum, result, player)
+  regret_sum <- regrets(regret_sum, result, comp)
   
-  player_strategy = avgStrat(strategy_sum)
+  player_strategy = t(as.matrix(avgStrat(strategy_sum)))
   
-  res = result + res
-  print(c(res, player_strategy))
+  profit[i] = result
+  strat[i, ] = player_strategy
 }
+
+
+as.data.table(profit) %>% 
+  mutate(cumulative = cumsum(profit),
+         game = as.numeric(row.names(.))) %>%
+  ggplot(aes(x = game, y = cumulative)) +
+  geom_line() +
+  theme_minimal()
+
+strat %>% 
+  mutate(game = as.numeric(row.names(.))) %>%
+  pivot_longer(-game, names_to = 'weapon', values_to = 'probability') %>% 
+  ggplot(aes(x = game, y = probability, colour = weapon)) +
+  geom_line() +
+  theme_minimal() +
+  scale_y_continuous(limits = c(0,1)) +
+  theme(legend.position = "bottom")
+  
 
 
